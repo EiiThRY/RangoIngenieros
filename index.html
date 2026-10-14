@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rango Ingenieros: primos y enteros</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1b1035;--panel:#2a1a52;--ink:#fff7e0;--cyan:#29e6ff;--yel:#ffd23f;--pink:#ff4f8b;--grn:#3ddc84;--blk:#0a0618}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Press Start 2P",ui-monospace,Consolas,monospace;font-size:12px;line-height:1.9}
+main{max-width:680px;margin:0 auto;padding:16px 14px 40px}
+.box{background:var(--panel);border:4px solid var(--ink);box-shadow:8px 8px 0 var(--blk);padding:18px;margin-bottom:16px}
+h1{font-size:clamp(18px,5vw,26px);line-height:1.4;margin:0 0 14px;color:var(--yel)}
+h2{font-size:14px;color:var(--cyan);margin:0 0 12px}
+p{margin:0 0 12px}
+.hud{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:11px}
+.q{font-size:13px;line-height:1.8;margin:0 0 14px}
+.opts{display:grid;gap:14px}
+button{font:inherit;font-size:12px;line-height:1.7;color:var(--blk);background:var(--yel);border:4px solid var(--blk);box-shadow:0 6px 0 var(--blk);padding:12px 14px;cursor:pointer;width:100%;text-align:left}
+button:hover:not(:disabled){background:var(--cyan)}
+button:focus-visible{outline:4px solid var(--pink);outline-offset:3px}
+button.go{background:var(--grn);text-align:center;margin-top:16px}
+button.ok{background:var(--grn)}
+button.bad{background:var(--pink)}
+button:disabled{cursor:default}
+.fb{border:4px dashed var(--cyan);padding:12px;margin-top:16px;font-size:11px}
+.fb b{color:var(--yel)}
+.big{font-size:20px;color:var(--yel);margin:10px 0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+
+<!-- Pantalla 1: inicio -->
+<section id="inicio" class="box">
+<h1>RANGO INGENIEROS</h1>
+<h2>Primos y enteros</h2>
+<p><span style="color:var(--cyan)">Entero:</span> número sin parte decimal (..., -2, -1, 0, 1, 2, ...). Sirve para contar cosas completas: piezas, vueltas, pulsos.</p>
+<p><span style="color:var(--pink)">Primo:</span> número mayor que 1 que solo se divide exacto entre 1 y entre sí mismo (2, 3, 5, 7, 11...). Se usa en criptografía y en engranajes.</p>
+<p>Responde 6 retos. Tienes 3 vidas.</p>
+<button class="go" id="btnInicio">START</button>
+</section>
+
+<!-- Pantalla 2: juego -->
+<section id="juego" class="hide">
+<div class="hud"><span id="hReto"></span><span id="hPuntos"></span><span id="hVidas"></span></div>
+<div class="box">
+<p class="q" id="pregunta"></p>
+<div class="opts" id="opciones"></div>
+<div class="fb hide" id="mensaje"></div>
+<button class="go hide" id="btnSiguiente">SIGUIENTE</button>
+</div>
+</section>
+
+<!-- Pantalla 3: resultado -->
+<section id="final" class="hide box">
+<h1 id="fTitulo"></h1>
+<div class="big" id="fPuntos"></div>
+<p id="fTexto"></p>
+<button class="go" id="btnReiniciar">JUGAR DE NUEVO</button>
+</section>
+
+</main>
+<script>
+// Cada reto: [pregunta, opciones, índice de la correcta (empieza en 0), explicación]
+var retos = [
+  ["¿El número 29 es primo?", ["Sí, es primo", "No, es compuesto"], 0, "29 solo se divide exacto entre 1 y 29."],
+  ["¿El número 51 es primo?", ["Sí, es primo", "No, es compuesto"], 1, "51 = 3 × 17. Parece primo, pero no lo es."],
+  ["Una caja de cambios cuenta sus engranajes. ¿Qué valor es posible?", ["3,5 engranajes", "4 engranajes", "2,25 engranajes"], 1, "No existen medios engranajes: contar piezas da números enteros."],
+  ["Un congelador está a -18 °C. ¿Es un número entero?", ["Sí, los negativos también son enteros", "No, solo los positivos"], 0, "Los enteros incluyen negativos, el cero y los positivos."],
+  ["Un engranaje tiene 20 dientes y otro 13. ¿Cuál cantidad es prima?", ["13", "20"], 0, "13 es primo. 20 = 2 × 2 × 5. Con dientes primos entre sí, el desgaste se reparte parejo."],
+  ["Una clave RSA es n = 15. ¿Qué dos primos la forman?", ["3 y 5", "1 y 15", "2 y 7"], 0, "15 = 3 × 5. Con números de cientos de cifras, separarlos tardaría siglos: ahí está la seguridad."]
+];
+
+// Variables del juego
+var actual = 0;    // número del reto en que va
+var puntos = 0;    // puntaje
+var vidas = 3;     // vidas restantes
+var racha = 0;     // aciertos seguidos
+var respondido = false;
+
+function el(id) { return document.getElementById(id); }
+
+// Muestra solo una pantalla
+function mostrar(id) {
+  el("inicio").classList.add("hide");
+  el("juego").classList.add("hide");
+  el("final").classList.add("hide");
+  el(id).classList.remove("hide");
+}
+
+// Dibuja el reto actual en pantalla
+function cargarReto() {
+  var r = retos[actual];
+  respondido = false;
+  el("hReto").textContent = "RETO " + (actual + 1) + "/" + retos.length;
+  el("hPuntos").textContent = "PUNTOS " + puntos;
+  el("hVidas").textContent = "VIDAS " + vidas;
+  el("pregunta").textContent = r[0];
+  el("mensaje").classList.add("hide");
+  el("btnSiguiente").classList.add("hide");
+
+  var cont = el("opciones");
+  cont.innerHTML = "";
+  for (var i = 0; i < r[1].length; i++) {
+    var b = document.createElement("button");
+    b.textContent = r[1][i];
+    b.dataset.indice = i;
+    b.onclick = responder;
+    cont.appendChild(b);
+  }
+  mostrar("juego");
+}
+
+// Se ejecuta al pulsar una opción
+function responder(evento) {
+  if (respondido) return;
+  respondido = true;
+  var elegida = Number(evento.target.dataset.indice);
+  var r = retos[actual];
+  var botones = el("opciones").children;
+  var correcto = (elegida === r[2]);
+
+  if (correcto) {
+    racha = racha + 1;
+    puntos = puntos + 10 + (racha - 1) * 5;   // 10 puntos + bono por racha
+    evento.target.classList.add("ok");
+  } else {
+    racha = 0;
+    vidas = vidas - 1;
+    evento.target.classList.add("bad");
+    botones[r[2]].classList.add("ok");        // muestra la correcta
+  }
+
+  for (var i = 0; i < botones.length; i++) { botones[i].disabled = true; }
+
+  el("hPuntos").textContent = "PUNTOS " + puntos;
+  el("hVidas").textContent = "VIDAS " + vidas;
+  el("mensaje").innerHTML = "<b>" + (correcto ? "¡Correcto!" : "Casi.") + "</b> " + r[3];
+  el("mensaje").classList.remove("hide");
+
+  if (vidas === 0) {
+    el("btnSiguiente").textContent = "VER RESULTADO";
+  } else if (actual === retos.length - 1) {
+    el("btnSiguiente").textContent = "VER RESULTADO";
+  } else {
+    el("btnSiguiente").textContent = "SIGUIENTE";
+  }
+  el("btnSiguiente").classList.remove("hide");
+}
+
+// Avanza al siguiente reto o termina
+function siguiente() {
+  if (vidas === 0 || actual === retos.length - 1) {
+    terminar();
+  } else {
+    actual = actual + 1;
+    cargarReto();
+  }
+}
+
+function terminar() {
+  var rango;
+  if (puntos >= 100) { rango = "Ingeniero/a principal"; }
+  else if (puntos >= 60) { rango = "Ingeniero/a de campo"; }
+  else { rango = "Ingeniero/a en prácticas"; }
+
+  if (vidas === 0) {
+    el("fTitulo").textContent = "GAME OVER";
+    el("fTexto").textContent = "Te quedaste sin vidas. Rango: " + rango + ". Repasa las explicaciones e inténtalo otra vez.";
+  } else {
+    el("fTitulo").textContent = "¡MISIÓN CUMPLIDA!";
+    el("fTexto").textContent = "Rango: " + rango + ". Los enteros cuentan piezas completas y los primos protegen la información.";
+  }
+  el("fPuntos").textContent = puntos + " puntos";
+  mostrar("final");
+}
+
+function reiniciar() {
+  actual = 0; puntos = 0; vidas = 3; racha = 0;
+  cargarReto();
+}
+
+el("btnInicio").onclick = reiniciar;
+el("btnSiguiente").onclick = siguiente;
+el("btnReiniciar").onclick = reiniciar;
+</script>
+</body>
+</html>
